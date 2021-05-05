@@ -4,7 +4,7 @@ WORKDIR /build
 RUN go build -o entrypoint
 
 
-FROM docker.io/library/centos:7
+FROM docker.io/library/centos:8
 
 LABEL 'com.github.actions.name'='Build RPM'
 LABEL 'com.github.actions.description'='Build RPM package from spec'
