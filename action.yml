@@ -1,0 +1,10 @@
+name: 'Build RPM'
+description: 'Build RPM package from spec'
+inputs:
+  yum-extras:
+    description: 'Install extra packages before building'
+    required: false
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
