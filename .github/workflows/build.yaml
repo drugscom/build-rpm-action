@@ -18,7 +18,7 @@ jobs:
         uses: drugscom/docker-matrix-action@v1
 
   build_image_x64:
-    name: Build ${{ matrix.image-name }}
+    name: Build ${{ matrix.image-name }} for x64
     needs: build_matrix
     strategy:
       fail-fast: false
@@ -67,7 +67,7 @@ jobs:
           color: danger
 
   build_image_arm64:
-    name: Build ${{ matrix.image-name }}
+    name: Build ${{ matrix.image-name }} for arm64
     needs:
       - build_matrix
       - start_runner
