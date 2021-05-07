@@ -12,7 +12,7 @@ Install extra packages before building.
 ## Example usage
 
 ```yaml
-uses: drugscom/build-rpm-action@v1
+uses: docker://ghcr.io/drugscom/build-rpm-action:1
 with:
   args: SPECS/mypackage.spec
   yum-extras: https://example.com/yumprivrepo-release.rpm
