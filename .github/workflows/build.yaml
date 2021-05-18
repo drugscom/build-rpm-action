@@ -5,6 +5,9 @@ name: Build image
   push:
   workflow_dispatch:
 
+permissions:
+  packages: write
+
 jobs:
   build_matrix:
     name: Build execution matrix
