@@ -12,20 +12,6 @@ import (
 
 
 func buildPackage(spec string) error {
-	packageName := strings.TrimSuffix(path.Base(spec), path.Ext(spec))
-
-	githubactions.Group(fmt.Sprintf("Building package %s", packageName))
-	defer githubactions.EndGroup()
-
-	if err := buildPackageTasks(spec); err != nil {
-		githubactions.Errorf("Error building package %s: %s", packageName, err)
-		return err
-	}
-
-	return nil
-}
-
-func buildPackageTasks(spec string) error {
 	if _, err := os.Stat(spec); err != nil {
 		return err
 	}
@@ -42,27 +28,35 @@ func buildPackageTasks(spec string) error {
 		buildDir = path.Join(cwd, buildDir)
 	}
 
-	if err := installBuildDeps(spec); err != nil {
+	parsedSpec, err := parseSpec(spec)
+	if err != nil {
 		return err
 	}
 
-	if err := downloadSources(spec, path.Join(buildDir, "SOURCES")); err != nil {
+	if err := lintSpec(parsedSpec, path.Join(buildDir, ".rpmlintrc")); err != nil {
 		return err
 	}
 
-	rpmbuildCmd := exec.Command("rpmbuild","-ba", "--nocheck", spec,
+	if err := installBuildDeps(parsedSpec); err != nil {
+		return err
+	}
+
+	if err := downloadSources(parsedSpec, path.Join(buildDir, "SOURCES")); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("rpmbuild","-ba", "--nocheck", spec,
 		"--define", fmt.Sprintf("_topdir %s", buildDir),
 		"--define", "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm",
 	)
-	rpmbuildCmd.Stdout = os.Stdout
-	rpmbuildCmd.Stderr = os.Stderr
-	if err := rpmbuildCmd.Run(); err != nil {
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
 		return err
 	}
 
 	return nil
 }
-
 
 func downloadSources(spec, dest string) error {
 	githubactions.Group("Downloading sources")
@@ -73,24 +67,11 @@ func downloadSources(spec, dest string) error {
 		return err
 	}
 
-	tempSpec, err := os.CreateTemp("", "*")
-	if err != nil {
-		githubactions.Errorf(err.Error())
-		return err
-	}
 
-	rpmspecCmd := exec.Command("rpmspec", "-P", spec)
-	rpmspecCmd.Stdout = tempSpec
-	rpmspecCmd.Stderr = os.Stderr
-	if err := rpmspecCmd.Run(); err != nil {
-		githubactions.Errorf(err.Error())
-		return err
-	}
-
-	spectoolCmd := exec.Command("spectool", "-g", "-C", dest, tempSpec.Name())
-	spectoolCmd.Stdout = os.Stdout
-	spectoolCmd.Stderr = os.Stderr
-	if err := spectoolCmd.Run(); err != nil {
+	cmd := exec.Command("spectool", "-g", "-C", dest, spec)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
 		return err
 	}
@@ -102,11 +83,11 @@ func installBuildDeps(spec string) error {
 	githubactions.Group("Installing build dependencies")
 	defer githubactions.EndGroup()
 
-	builddepCmd := exec.Command("yum-builddep", "-y", spec)
-	builddepCmd.Stdout = os.Stdout
-	builddepCmd.Stderr = os.Stderr
+	cmd := exec.Command("yum-builddep", "-y", spec)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	if err := builddepCmd.Run(); err != nil {
+	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
 		return err
 	}
@@ -114,6 +95,49 @@ func installBuildDeps(spec string) error {
 	return nil
 }
 
+func lintSpec(spec, configFile string) error {
+	githubactions.Group("Linting spec file")
+	githubactions.AddMatcher(".github/rpmlint-problem-matcher.json")
+	defer githubactions.RemoveMatcher("rpmlint")
+	defer githubactions.EndGroup()
+
+	cmdArgs := []string{spec}
+	if configFile != "" {
+		cmdArgs = append([]string{"-f", configFile}, cmdArgs...)
+	}
+
+	cmd := exec.Command("rpmlint", cmdArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		githubactions.Errorf(err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func parseSpec(spec string) (string, error) {
+	githubactions.Group("Parsing spec file")
+	defer githubactions.EndGroup()
+
+	tempSpec, err := os.CreateTemp("", "*")
+	if err != nil {
+		githubactions.Errorf(err.Error())
+		return "", err
+	}
+
+	cmd := exec.Command("rpmspec", "-P", spec)
+	cmd.Stdout = tempSpec
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		githubactions.Errorf(err.Error())
+		return "", err
+	}
+
+	return tempSpec.Name(), nil
+}
 
 func main() {
 	exitCode := 0
@@ -125,18 +149,23 @@ func main() {
 
 		cmdArgs := append([]string{"-y", "install"}, yumExtras...)
 
-		yumCmd := exec.Command("yum", cmdArgs...)
-		yumCmd.Stdout = os.Stdout
-		yumCmd.Stderr = os.Stderr
+		cmd := exec.Command("yum", cmdArgs...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 
-		if err := yumCmd.Run(); err != nil {
+		if err := cmd.Run(); err != nil {
 			githubactions.Fatalf("Failed to install additional packages. %s", err)
 		}
 
 	}
 
 	for _, spec := range os.Args[1:] {
+		packageName := strings.TrimSuffix(path.Base(spec), path.Ext(spec))
+
+		githubactions.Infof("Building package %s", packageName)
+
 		if err := buildPackage(spec); err != nil {
+			githubactions.Errorf("Error building package %s: %s", packageName, err)
 			exitCode = 1
 		}
 	}

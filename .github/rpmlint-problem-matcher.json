@@ -1,0 +1,28 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "rpmlint",
+      "severity": "error",
+      "pattern": [
+        {
+          "regexp": "^([^:]*):([0-9]+): E: (.*)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        }
+      ]
+    },
+    {
+      "owner": "rpmlint",
+      "severity": "warning",
+      "pattern": [
+        {
+          "regexp": "^([^:]*):([0-9]+): W: (.*)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        }
+      ]
+    }
+  ]
+}
