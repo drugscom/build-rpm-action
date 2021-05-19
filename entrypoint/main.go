@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -51,6 +52,8 @@ func buildPackage(spec string) error {
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	githubactions.Debugf(cmd.String())
 	if err := cmd.Run(); err != nil {
 		return err
 	}
@@ -71,6 +74,8 @@ func downloadSources(spec, dest string) error {
 	cmd := exec.Command("spectool", "-g", "-C", dest, spec)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	githubactions.Debugf(cmd.String())
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
 		return err
@@ -87,8 +92,27 @@ func installBuildDeps(spec string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	githubactions.Debugf(cmd.String())
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func installExtraPackages(packages... string) error {
+	githubactions.Group("Installing extra packages")
+	defer githubactions.EndGroup()
+
+	cmdArgs := append([]string{"-y", "install"}, packages...)
+
+	cmd := exec.Command("yum", cmdArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	githubactions.Debugf(cmd.String())
+	if err := cmd.Run(); err != nil {
 		return err
 	}
 
@@ -110,6 +134,7 @@ func lintSpec(spec, configFile string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	githubactions.Debugf(cmd.String())
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
 		return err
@@ -122,15 +147,17 @@ func parseSpec(spec string) (string, error) {
 	githubactions.Group("Parsing spec file")
 	defer githubactions.EndGroup()
 
-	tempSpec, err := os.CreateTemp("", "*")
+	tempSpec, err := os.CreateTemp("", "*.spec")
 	if err != nil {
 		githubactions.Errorf(err.Error())
 		return "", err
 	}
 
 	cmd := exec.Command("rpmspec", "-P", spec)
-	cmd.Stdout = tempSpec
+	cmd.Stdout = io.MultiWriter(os.Stdout, tempSpec)
 	cmd.Stderr = os.Stderr
+
+	githubactions.Debugf(cmd.String())
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
 		return "", err
@@ -144,25 +171,16 @@ func main() {
 
 	yumExtras := GetInputAsArray("yum-extras")
 	if len(yumExtras) > 0 {
-		githubactions.Group("Installing additional packages")
-		defer githubactions.EndGroup()
-
-		cmdArgs := append([]string{"-y", "install"}, yumExtras...)
-
-		cmd := exec.Command("yum", cmdArgs...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			githubactions.Fatalf("Failed to install additional packages. %s", err)
+		if err := installExtraPackages(yumExtras...); err != nil {
+			githubactions.Errorf("Error installing extra packages: %s", err)
+			os.Exit(1)
 		}
-
 	}
 
 	for _, spec := range os.Args[1:] {
 		packageName := strings.TrimSuffix(path.Base(spec), path.Ext(spec))
 
-		githubactions.Infof("Building package %s", packageName)
+		githubactions.Infof("Building package %s\n", packageName)
 
 		if err := buildPackage(spec); err != nil {
 			githubactions.Errorf("Error building package %s: %s", packageName, err)
