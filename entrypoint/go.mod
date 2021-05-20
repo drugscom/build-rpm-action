@@ -1,4 +1,4 @@
-module github.com/drugscom/build-rpm-action/entrypoint
+module github.com/drugscom/rpmbuild-action/entrypoint
 
 go 1.16
 
