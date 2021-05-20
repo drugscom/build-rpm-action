@@ -147,6 +147,7 @@ func main() {
 
 	rpmSpecs := map[string]*RPMSpec{}
 
+	githubactions.Group("Reading specs")
 	for _, p := range os.Args[1:] {
 		spec, err := NewRPMSpec(p)
 		if err != nil {
@@ -157,6 +158,7 @@ func main() {
 
 		rpmSpecs[spec.Name] = spec
 	}
+	githubactions.EndGroup()
 
 	githubactions.Group("Building jobs queue")
 	jobQueue := getJobQueue(rpmSpecs)
