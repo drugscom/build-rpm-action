@@ -13,7 +13,6 @@ RUN yum -y install \
     epel-release-7 \
     rpm-build-4.11.3 \
     rpmdevtools-8.3 \
-    rpmlint-1.5 \
     && yum -y groupinstall 'Development Tools' \
     && yum -y clean all
 
