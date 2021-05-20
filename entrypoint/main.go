@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -12,42 +11,12 @@ import (
 )
 
 
-func buildPackage(spec string) error {
-	if _, err := os.Stat(spec); err != nil {
-		return err
-	}
+func buildPackage(spec *RPMSpec) error {
+	githubactions.Group(fmt.Sprintf("Building package \"%s\"", spec.Name))
+	defer githubactions.EndGroup()
 
-	// Assume spec is inside a SPECS directory in the build root
-	buildDir := path.Dir(path.Dir(spec))
-
-	// rpmbuild expects an absolute path
-	if !path.IsAbs(buildDir) {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		buildDir = path.Join(cwd, buildDir)
-	}
-
-	parsedSpec, err := parseSpec(spec)
-	if err != nil {
-		return err
-	}
-
-	if err := lintSpec(parsedSpec, path.Join(buildDir, ".rpmlintrc")); err != nil {
-		return err
-	}
-
-	if err := installBuildDeps(parsedSpec); err != nil {
-		return err
-	}
-
-	if err := downloadSources(parsedSpec, path.Join(buildDir, "SOURCES")); err != nil {
-		return err
-	}
-
-	cmd := exec.Command("rpmbuild","-ba", "--nocheck", spec,
-		"--define", fmt.Sprintf("_topdir %s", buildDir),
+	cmd := exec.Command("rpmbuild","-ba", "--nocheck", spec.Path,
+		"--define", fmt.Sprintf("_topdir %s", spec.BuildPath),
 		"--define", "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm",
 	)
 	cmd.Stdout = os.Stdout
@@ -55,23 +24,25 @@ func buildPackage(spec string) error {
 
 	githubactions.Debugf(cmd.String())
 	if err := cmd.Run(); err != nil {
+		githubactions.Errorf(err.Error())
 		return err
 	}
 
 	return nil
 }
 
-func downloadSources(spec, dest string) error {
-	githubactions.Group("Downloading sources")
+func downloadSources(spec *RPMSpec) error {
+	githubactions.Group(fmt.Sprintf("Downloading sources for package \"%s\"", spec.Name))
 	defer githubactions.EndGroup()
 
-	if err := os.MkdirAll(dest,0755); err != nil {
+	destPath := path.Join(spec.BuildPath, "SOURCES")
+	if err := os.MkdirAll(destPath,0755); err != nil {
 		githubactions.Errorf(err.Error())
 		return err
 	}
 
 
-	cmd := exec.Command("spectool", "-g", "-C", dest, spec)
+	cmd := exec.Command("spectool", "-g", "-C", destPath, spec.Path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -84,11 +55,54 @@ func downloadSources(spec, dest string) error {
 	return nil
 }
 
-func installBuildDeps(spec string) error {
-	githubactions.Group("Installing build dependencies")
+func getJobQueue(specDefs map[string]*RPMSpec) []*RPMSpec {
+	var result []*RPMSpec
+	processed := map[string]*RPMSpec{}
+
+	for pkgName, spec := range specDefs {
+		if _, ok := processed[pkgName]; ok {
+			githubactions.Debugf("Skipping package \"%s\", already processed", pkgName)
+			continue
+		}
+
+		githubactions.Debugf("Package \"%s\" has build dependencies: %s", pkgName, strings.Join(spec.BuildDeps, ", "))
+		depSpecDefs := map[string]*RPMSpec{}
+		for _, depName := range spec.BuildDeps {
+			if depSpec, ok := specDefs[depName]; ok {
+				githubactions.Debugf("Build dependency \"%s\" found in spec definitions", pkgName)
+				depSpecDefs[depName] = depSpec
+			}
+		}
+
+		if len(depSpecDefs) > 0 {
+			githubactions.Debugf("Getting build dependency queue for package \"%s\"", pkgName)
+			depSpecQueue := getJobQueue(depSpecDefs)
+
+			for _, depSpec := range depSpecQueue {
+				if _, ok := processed[depSpec.Name]; ok {
+					githubactions.Debugf("Skipping build dependency \"%s\", already processed", pkgName)
+					continue
+				}
+
+				githubactions.Debugf("Adding build dependency \"%s\" to the queue", pkgName)
+				processed[depSpec.Name] = depSpec
+				result = append(result, depSpec)
+			}
+
+		}
+
+		githubactions.Debugf("Adding package \"%s\" to the queue", pkgName)
+		result = append(result, spec)
+	}
+
+	return result
+}
+
+func installBuildDeps(spec *RPMSpec) error {
+	githubactions.Group(fmt.Sprintf("Installing build dependencies for package \"%s\"", spec.Name))
 	defer githubactions.EndGroup()
 
-	cmd := exec.Command("yum-builddep", "-y", spec)
+	cmd := exec.Command("yum-builddep", "-y", spec.Path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -113,29 +127,6 @@ func installExtraPackages(packages... string) error {
 
 	githubactions.Debugf(cmd.String())
 	if err := cmd.Run(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func lintSpec(spec, configFile string) error {
-	githubactions.Group("Linting spec file")
-	githubactions.AddMatcher(".github/rpmlint-problem-matcher.json")
-	defer githubactions.RemoveMatcher("rpmlint")
-	defer githubactions.EndGroup()
-
-	cmdArgs := []string{spec}
-	if configFile != "" {
-		cmdArgs = append([]string{"-f", configFile}, cmdArgs...)
-	}
-
-	cmd := exec.Command("rpmlint", cmdArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	githubactions.Debugf(cmd.String())
-	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
 		return err
 	}
@@ -143,28 +134,6 @@ func lintSpec(spec, configFile string) error {
 	return nil
 }
 
-func parseSpec(spec string) (string, error) {
-	githubactions.Group("Parsing spec file")
-	defer githubactions.EndGroup()
-
-	tempSpec, err := os.CreateTemp("", "*.spec")
-	if err != nil {
-		githubactions.Errorf(err.Error())
-		return "", err
-	}
-
-	cmd := exec.Command("rpmspec", "-P", spec)
-	cmd.Stdout = io.MultiWriter(os.Stdout, tempSpec)
-	cmd.Stderr = os.Stderr
-
-	githubactions.Debugf(cmd.String())
-	if err := cmd.Run(); err != nil {
-		githubactions.Errorf(err.Error())
-		return "", err
-	}
-
-	return tempSpec.Name(), nil
-}
 
 func main() {
 	exitCode := 0
@@ -172,19 +141,43 @@ func main() {
 	yumExtras := GetInputAsArray("yum-extras")
 	if len(yumExtras) > 0 {
 		if err := installExtraPackages(yumExtras...); err != nil {
-			githubactions.Errorf("Error installing extra packages: %s", err)
-			os.Exit(1)
+			githubactions.Fatalf(err.Error())
 		}
 	}
 
-	for _, spec := range os.Args[1:] {
-		packageName := strings.TrimSuffix(path.Base(spec), path.Ext(spec))
+	rpmSpecs := map[string]*RPMSpec{}
 
-		githubactions.Infof("Building package %s\n", packageName)
+	for _, p := range os.Args[1:] {
+		spec, err := NewRPMSpec(p)
+		if err != nil {
+			githubactions.Errorf("Skipping spec \"%s\": %s", p, err)
+			exitCode = 1
+			continue
+		}
+
+		rpmSpecs[spec.Name] = spec
+	}
+
+	githubactions.Group("Building jobs queue")
+	jobQueue := getJobQueue(rpmSpecs)
+	githubactions.EndGroup()
+
+	for _, spec := range jobQueue {
+		githubactions.Debugf("Building package \"%s\" using spec file \"%s\"", spec.Name, spec.Path)
+
+		if err := installBuildDeps(spec); err != nil {
+			exitCode = 1
+			continue
+		}
+
+		if err := downloadSources(spec); err != nil {
+			exitCode = 1
+			continue
+		}
 
 		if err := buildPackage(spec); err != nil {
-			githubactions.Errorf("Error building package %s: %s", packageName, err)
 			exitCode = 1
+			continue
 		}
 	}
 
