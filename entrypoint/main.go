@@ -55,47 +55,72 @@ func downloadSources(spec *RPMSpec) error {
 	return nil
 }
 
-func getJobQueue(specDefs map[string]*RPMSpec) []*RPMSpec {
-	var result []*RPMSpec
-	processed := map[string]*RPMSpec{}
+func getJobQueue(pkgList []string, specDefs map[string]*RPMSpec) []*RPMSpec {
+	return getJobQueueRecurse(pkgList, specDefs, map[string]struct{}{})
+}
 
-	for pkgName, spec := range specDefs {
+func getJobQueueRecurse(pkgList []string, specDefs map[string]*RPMSpec, processed map[string]struct{}) []*RPMSpec {
+	var result []*RPMSpec
+
+	for _, pkgName := range pkgList {
 		if _, ok := processed[pkgName]; ok {
 			githubactions.Debugf("Skipping package \"%s\", already processed", pkgName)
 			continue
 		}
 
-		githubactions.Debugf("Package \"%s\" has build dependencies: %s", pkgName, strings.Join(spec.BuildDeps, ", "))
-		depSpecDefs := map[string]*RPMSpec{}
-		for _, depName := range spec.BuildDeps {
-			if depSpec, ok := specDefs[depName]; ok {
-				githubactions.Debugf("Build dependency \"%s\" found in spec definitions", pkgName)
-				depSpecDefs[depName] = depSpec
-			}
+		spec, ok := specDefs[pkgName]
+		if !ok {
+			continue
 		}
 
-		if len(depSpecDefs) > 0 {
-			githubactions.Debugf("Getting build dependency queue for package \"%s\"", pkgName)
-			depSpecQueue := getJobQueue(depSpecDefs)
-
-			for _, depSpec := range depSpecQueue {
-				if _, ok := processed[depSpec.Name]; ok {
-					githubactions.Debugf("Skipping build dependency \"%s\", already processed", pkgName)
-					continue
-				}
-
-				githubactions.Debugf("Adding build dependency \"%s\" to the queue", pkgName)
-				processed[depSpec.Name] = depSpec
-				result = append(result, depSpec)
+		githubactions.Debugf("Package \"%s\" build dependencies: %s", pkgName, strings.Join(spec.BuildDeps, ", "))
+		var depPkgList []string
+		for _, depName := range spec.BuildDeps {
+			if _, ok := processed[depName]; ok {
+				githubactions.Debugf("Skipping build dependency \"%s\", already processed", depName)
+				continue
 			}
 
+			if _, ok := specDefs[depName]; !ok {
+				continue
+			}
+
+			depPkgList = append(depPkgList, depName)
+		}
+
+		for _, depSpec := range getJobQueueRecurse(depPkgList, specDefs, processed) {
+			githubactions.Debugf("Build dependency \"%s\" will be built before \"%s\"", depSpec.Name, pkgName)
+			processed[depSpec.Name] = struct{}{}
+			result = append(result, depSpec)
 		}
 
 		githubactions.Debugf("Adding package \"%s\" to the queue", pkgName)
+		processed[pkgName] = struct{}{}
 		result = append(result, spec)
 	}
 
 	return result
+}
+
+func getRPMSpecs(p... string) (map[string]*RPMSpec, error) {
+	githubactions.Group("Reading RPM spec files")
+	defer githubactions.EndGroup()
+
+	var err error
+	result := map[string]*RPMSpec{}
+
+	for _, p := range p {
+		var spec *RPMSpec
+		spec, err = NewRPMSpec(p)
+		if err != nil {
+			githubactions.Errorf("Skipping spec \"%s\": %s", p, err)
+			continue
+		}
+
+		result[spec.Name] = spec
+	}
+
+	return result, err
 }
 
 func installBuildDeps(spec *RPMSpec) error {
@@ -145,23 +170,20 @@ func main() {
 		}
 	}
 
-	rpmSpecs := map[string]*RPMSpec{}
-
-	githubactions.Group("Reading specs")
-	for _, p := range os.Args[1:] {
-		spec, err := NewRPMSpec(p)
-		if err != nil {
-			githubactions.Errorf("Skipping spec \"%s\": %s", p, err)
-			exitCode = 1
-			continue
-		}
-
-		rpmSpecs[spec.Name] = spec
+	rpmSpecs, err := getRPMSpecs(os.Args[1:]...)
+	if err != nil {
+		exitCode = 1
 	}
-	githubactions.EndGroup()
 
 	githubactions.Group("Building jobs queue")
-	jobQueue := getJobQueue(rpmSpecs)
+	var pkgList []string
+	for p := range rpmSpecs {
+		pkgList = append(pkgList, p)
+	}
+
+	jobQueue := getJobQueue(pkgList, rpmSpecs)
+
+	githubactions.Debugf("Package build order: %s", jobQueue)
 	githubactions.EndGroup()
 
 	for _, spec := range jobQueue {

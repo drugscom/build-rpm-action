@@ -12,7 +12,11 @@ import (
 	"strings"
 )
 
-func getBuildDeps(spec io.Reader) ([]string, error) {
+func getBuildDeps(spec io.ReadSeeker) ([]string, error) {
+	if _, err := spec.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+
 	var buildDeps []string
 	buildDepsMap := map[string]struct{}{}
 
@@ -20,14 +24,14 @@ func getBuildDeps(spec io.Reader) ([]string, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		matched := regexp.MustCompile(`^\s*BuildRequires:\s*`).Split(line, 1)
+		matched := regexp.MustCompile(`^\s*BuildRequires:\s*`).Split(line, 2)
 		if len(matched) < 2 {
 			continue
 		}
 		line = matched[1]
 
 		for _, s := range regexp.MustCompile(`[ ,]`).Split(line, -1) {
-			pkgName := regexp.MustCompile(`[-._+a-zA-Z0-9]`).FindString(s)
+			pkgName := regexp.MustCompile(`^[a-zA-Z][-._+a-zA-Z0-9]+`).FindString(s)
 			if pkgName == "" {
 				continue
 			}
@@ -68,12 +72,16 @@ func getBuildPath(p string) (string, error) {
 	return result, nil
 }
 
-func getPackageName(spec io.Reader) (string, error) {
+func getPackageName(spec io.ReadSeeker) (string, error) {
+	if _, err := spec.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+
 	scanner := bufio.NewScanner(spec)
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		matched := regexp.MustCompile(`^\s*Name:\s*`).Split(line, 1)
+		matched := regexp.MustCompile(`^\s*Name:\s*`).Split(line, 2)
 		if len(matched) > 1 {
 			pkgName := matched[1]
 			return pkgName, nil
@@ -86,7 +94,7 @@ func getPackageName(spec io.Reader) (string, error) {
 	return "", nil
 }
 
-func parseSpec(p string) (*bytes.Buffer, error) {
+func parseSpec(p string) (*bytes.Reader, error) {
 	cmdStdOut := &bytes.Buffer{}
 	cmd := exec.Command("rpmspec", "-P", p)
 	cmd.Stdout = cmdStdOut
@@ -96,7 +104,7 @@ func parseSpec(p string) (*bytes.Buffer, error) {
 		return nil, err
 	}
 
-	return cmdStdOut, nil
+	return bytes.NewReader(cmdStdOut.Bytes()), nil
 }
 
 
