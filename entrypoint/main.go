@@ -30,6 +30,20 @@ func buildPackage(spec *RPMSpec) error {
 	return nil
 }
 
+func cleanMetadata() error {
+	cmd := exec.Command("yum", "clean", "metadata")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	githubactions.Debugf(cmd.String())
+	if err := cmd.Run(); err != nil {
+		githubactions.Errorf(err.Error())
+		return err
+	}
+
+	return nil
+}
+
 func createLocalRepo() (func() error, error) {
 	githubactions.Group("Creating local repo")
 	defer githubactions.EndGroup()
@@ -50,6 +64,10 @@ func createLocalRepo() (func() error, error) {
 	}
 
 	if err := createRepo(repoCache, repoOutput, cwd); err != nil {
+		return nil, err
+	}
+
+	if err := cleanMetadata(); err != nil {
 		return nil, err
 	}
 
@@ -272,6 +290,10 @@ func main() {
 
 		//goland:noinspection GoNilness
 		if err := updateLocalRepo(); err != nil {
+			exitCode = 1
+			continue
+		}
+		if err := cleanMetadata(); err != nil {
 			exitCode = 1
 			continue
 		}
