@@ -31,6 +31,70 @@ func buildPackage(spec *RPMSpec) error {
 	return nil
 }
 
+func createLocalRepo() (func() error, error) {
+	githubactions.Group("Creating local repo")
+	defer githubactions.EndGroup()
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	repoOutput, err := os.MkdirTemp("", "yumrepo_*")
+	if err != nil {
+		return nil, err
+	}
+
+	repoCache, err := os.MkdirTemp("", "createrepo-cache_*")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := createRepo(repoCache, repoOutput, cwd); err != nil {
+		return nil, err
+	}
+
+	repoConfig, err := os.Create("/etc/yum.repos.d/local.repo")
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := fmt.Fprintf(repoConfig, "[local]\nname=Local development packages\nbaseurl=file://%s\nenabled=1\ngpgcheck=0\nprotect=1", repoOutput); err != nil {
+		return nil, err
+	}
+
+	return func() error {
+		githubactions.Group("Updating local repo")
+		defer githubactions.EndGroup()
+		return createRepo(repoCache, repoOutput, cwd)
+	}, nil
+}
+
+func createRepo(cachePath, outputPath string, p string) error {
+	cmdArgs := []string{"-q", "-u", p}
+
+	if cachePath != "" {
+		cmdArgs = append(cmdArgs, "-c", cachePath)
+	}
+	if outputPath != "" {
+		cmdArgs = append(cmdArgs, "-o", outputPath)
+	}
+
+	cmdArgs = append(cmdArgs, p)
+
+	cmd := exec.Command("createrepo", cmdArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	githubactions.Debugf(cmd.String())
+	if err := cmd.Run(); err != nil {
+		githubactions.Errorf(err.Error())
+		return err
+	}
+
+	return nil
+}
+
 func downloadSources(spec *RPMSpec) error {
 	githubactions.Group(fmt.Sprintf("Downloading sources for package \"%s\"", spec.Name))
 	defer githubactions.EndGroup()
@@ -186,6 +250,11 @@ func main() {
 	githubactions.Debugf("Package build order: %s", jobQueue)
 	githubactions.EndGroup()
 
+	updateLocalRepo, err := createLocalRepo()
+	if err != nil {
+		githubactions.Fatalf(err.Error())
+	}
+
 	for _, spec := range jobQueue {
 		githubactions.Debugf("Building package \"%s\" using spec file \"%s\"", spec.Name, spec.Path)
 
@@ -200,6 +269,12 @@ func main() {
 		}
 
 		if err := buildPackage(spec); err != nil {
+			exitCode = 1
+			continue
+		}
+
+		//goland:noinspection GoNilness
+		if err := updateLocalRepo(); err != nil {
 			exitCode = 1
 			continue
 		}

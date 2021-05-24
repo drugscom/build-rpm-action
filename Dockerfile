@@ -11,6 +11,7 @@ LABEL 'com.github.actions.description'='Build RPM package from spec'
 
 RUN yum -y install \
     epel-release-7 \
+    createrepo-0.9.9 \
     rpm-build-4.11.3 \
     rpmdevtools-8.3 \
     && yum -y groupinstall 'Development Tools' \
