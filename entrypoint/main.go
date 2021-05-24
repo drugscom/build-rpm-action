@@ -10,12 +10,11 @@ import (
 	"github.com/sethvargo/go-githubactions"
 )
 
-
 func buildPackage(spec *RPMSpec) error {
 	githubactions.Group(fmt.Sprintf("Building package \"%s\"", spec.Name))
 	defer githubactions.EndGroup()
 
-	cmd := exec.Command("rpmbuild","-ba", "--nocheck", spec.Path,
+	cmd := exec.Command("rpmbuild", "-ba", "--nocheck", spec.Path,
 		"--define", fmt.Sprintf("_topdir %s", spec.BuildPath),
 		"--define", "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm",
 	)
@@ -100,11 +99,10 @@ func downloadSources(spec *RPMSpec) error {
 	defer githubactions.EndGroup()
 
 	destPath := path.Join(spec.BuildPath, "SOURCES")
-	if err := os.MkdirAll(destPath,0755); err != nil {
+	if err := os.MkdirAll(destPath, 0755); err != nil {
 		githubactions.Errorf(err.Error())
 		return err
 	}
-
 
 	cmd := exec.Command("spectool", "-g", "-C", destPath, spec.Path)
 	cmd.Stdout = os.Stdout
@@ -166,7 +164,7 @@ func getJobQueueRecurse(pkgList []string, specDefs map[string]*RPMSpec, processe
 	return result
 }
 
-func getRPMSpecs(p... string) (map[string]*RPMSpec, error) {
+func getRPMSpecs(p ...string) (map[string]*RPMSpec, error) {
 	githubactions.Group("Reading RPM spec files")
 	defer githubactions.EndGroup()
 
@@ -204,7 +202,7 @@ func installBuildDeps(spec *RPMSpec) error {
 	return nil
 }
 
-func installExtraPackages(packages... string) error {
+func installExtraPackages(packages ...string) error {
 	githubactions.Group("Installing extra packages")
 	defer githubactions.EndGroup()
 
@@ -222,7 +220,6 @@ func installExtraPackages(packages... string) error {
 
 	return nil
 }
-
 
 func main() {
 	exitCode := 0
