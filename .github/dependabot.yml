@@ -9,3 +9,11 @@ updates:
     reviewers:
       - asenci
       - NoodlesNZ
+  - package-ecosystem: gomod
+    directory: /entrypoint
+    schedule:
+      interval: daily
+    reviewers:
+      - asenci
+      - NoodlesNZ
+
