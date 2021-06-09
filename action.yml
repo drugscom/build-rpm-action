@@ -4,7 +4,9 @@ inputs:
   yum-extras:
     description: 'Install extra packages before building'
     required: false
-
+outputs:
+  build-successful:
+    description: 'List of specs successfully built'
 runs:
   using: 'docker'
   image: 'Dockerfile'

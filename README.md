@@ -8,6 +8,11 @@ This action builds RPM packages from spec.
 
 Install extra packages before building.
 
+## Outputs
+
+### `build-successful`
+
+List of specs successfully built
 
 ## Example usage
 

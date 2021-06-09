@@ -274,6 +274,7 @@ func main() {
 		githubactions.Fatalf(err.Error())
 	}
 
+	var buildSuccessful []string
 	for _, spec := range jobQueue {
 		githubactions.Debugf("Building package \"%s\" using spec file \"%s\"", spec.Name, spec.Path)
 
@@ -291,6 +292,7 @@ func main() {
 			exitCode = 1
 			continue
 		}
+		buildSuccessful = append(buildSuccessful, spec.Path)
 
 		//goland:noinspection GoNilness
 		if err := updateLocalRepo(); err != nil {
@@ -303,5 +305,6 @@ func main() {
 		}
 	}
 
+	githubactions.SetOutput("build-successful", strings.Join(buildSuccessful, ","))
 	os.Exit(exitCode)
 }
