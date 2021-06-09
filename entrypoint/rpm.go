@@ -142,6 +142,7 @@ type RPMSpec struct {
 	BuildPath     string
 	ExcludeArch   []string
 	ExclusiveArch []string
+	ParsedSpec    *bytes.Reader
 }
 
 func (s *RPMSpec) String() string {
@@ -225,5 +226,6 @@ func NewRPMSpec(p string) (*RPMSpec, error) {
 		BuildPath:     buildPath,
 		ExcludeArch:   excludeArchs,
 		ExclusiveArch: exclusiveArchs,
+		ParsedSpec:    parsedSpec,
 	}, nil
 }

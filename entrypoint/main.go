@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -122,7 +124,27 @@ func downloadSources(spec *RPMSpec) error {
 		return err
 	}
 
-	cmd := exec.Command("spectool", "-g", "-C", destPath, spec.Path)
+	// spectool is broken for some spec files, use parsed spec as a workaround
+	tempFile, err := ioutil.TempFile("", "spec-")
+	if err != nil {
+		return err
+	}
+	//goland:noinspection GoUnhandledErrorResult
+	defer tempFile.Close()
+
+	if _, err := spec.ParsedSpec.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(tempFile, spec.ParsedSpec); err != nil {
+		return err
+	}
+
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+
+	cmd := exec.Command("spectool", "-g", "-C", destPath, tempFile.Name())
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
