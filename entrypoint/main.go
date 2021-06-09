@@ -244,8 +244,6 @@ func installExtraPackages(packages ...string) error {
 }
 
 func main() {
-	exitCode := 0
-
 	yumExtras := GetInputAsArray("yum-extras")
 	if len(yumExtras) > 0 {
 		if err := installExtraPackages(yumExtras...); err != nil {
@@ -255,7 +253,7 @@ func main() {
 
 	rpmSpecs, err := getRPMSpecs(GetArgsAsArray(os.Args[1:]))
 	if err != nil {
-		exitCode = 1
+		githubactions.Fatalf(err.Error())
 	}
 
 	githubactions.Group("Building jobs queue")
@@ -279,32 +277,26 @@ func main() {
 		githubactions.Debugf("Building package \"%s\" using spec file \"%s\"", spec.Name, spec.Path)
 
 		if err := installBuildDeps(spec); err != nil {
-			exitCode = 1
-			continue
+			githubactions.Fatalf(err.Error())
 		}
 
 		if err := downloadSources(spec); err != nil {
-			exitCode = 1
-			continue
+			githubactions.Fatalf(err.Error())
 		}
 
 		if err := buildPackage(spec); err != nil {
-			exitCode = 1
-			continue
+			githubactions.Fatalf(err.Error())
 		}
 		buildSuccessful = append(buildSuccessful, spec.Path)
 
 		//goland:noinspection GoNilness
 		if err := updateLocalRepo(); err != nil {
-			exitCode = 1
-			continue
+			githubactions.Fatalf(err.Error())
 		}
 		if err := cleanMetadata(); err != nil {
-			exitCode = 1
-			continue
+			githubactions.Fatalf(err.Error())
 		}
 	}
 
 	githubactions.SetOutput("successful", strings.Join(buildSuccessful, ","))
-	os.Exit(exitCode)
 }
