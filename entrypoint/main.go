@@ -182,7 +182,7 @@ func getJobQueueRecurse(pkgList []string, specDefs map[string]*RPMSpec, processe
 	return result
 }
 
-func getRPMSpecs(p ...string) (map[string]*RPMSpec, error) {
+func getRPMSpecs(p []string) (map[string]*RPMSpec, error) {
 	githubactions.Group("Reading RPM spec files")
 	defer githubactions.EndGroup()
 
@@ -249,7 +249,7 @@ func main() {
 		}
 	}
 
-	rpmSpecs, err := getRPMSpecs(os.Args[1:]...)
+	rpmSpecs, err := getRPMSpecs(GetArgsAsArray(os.Args[1:]))
 	if err != nil {
 		exitCode = 1
 	}
