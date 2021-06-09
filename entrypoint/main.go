@@ -193,7 +193,11 @@ func getRPMSpecs(p []string) (map[string]*RPMSpec, error) {
 		var spec *RPMSpec
 		spec, err = NewRPMSpec(p)
 		if err != nil {
-			githubactions.Errorf("Skipping spec \"%s\": %s", p, err)
+			githubactions.Errorf("Skipping \"%s\": %s", p, err)
+			continue
+		}
+		if err := spec.TestArch(); err != nil {
+			githubactions.Errorf("Skipping \"%s\": %s", p, err)
 			continue
 		}
 
