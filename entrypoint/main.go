@@ -305,6 +305,6 @@ func main() {
 		}
 	}
 
-	githubactions.SetOutput("build-successful", strings.Join(buildSuccessful, ","))
+	githubactions.SetOutput("successful", strings.Join(buildSuccessful, ","))
 	os.Exit(exitCode)
 }

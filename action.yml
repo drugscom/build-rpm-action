@@ -5,7 +5,7 @@ inputs:
     description: 'Install extra packages before building'
     required: false
 outputs:
-  build-successful:
+  successful:
     description: 'List of specs successfully built'
 runs:
   using: 'docker'

@@ -10,7 +10,7 @@ Install extra packages before building.
 
 ## Outputs
 
-### `build-successful`
+### `successful`
 
 List of specs successfully built
 
