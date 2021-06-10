@@ -25,9 +25,6 @@ func getBuildDeps(spec io.ReadSeeker) ([]string, error) {
 	for _, s := range params {
 		pkgName := regexp.MustCompile(`^[a-zA-Z][-._+a-zA-Z0-9]+`).FindString(s)
 
-		// Ignore -devel suffix (will likely be defined inside the main package spec)
-		pkgName = strings.TrimSuffix(pkgName, "-devel")
-
 		if _, ok := processed[pkgName]; ok {
 			// Ignore duplicated dependency
 			continue

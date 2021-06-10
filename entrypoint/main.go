@@ -183,11 +183,16 @@ func getJobQueueRecurse(pkgList []string, specDefs map[string]*RPMSpec, processe
 				continue
 			}
 
-			if _, ok := specDefs[depName]; !ok {
-				continue
+			for _, s := range []string{
+				depName,
+				strings.TrimSuffix(depName, "-devel"),
+				strings.TrimPrefix(depName, "lib"),
+				strings.TrimSuffix(strings.TrimPrefix(depName, "lib"), "-devel"),
+			} {
+				if _, ok := specDefs[s]; ok {
+					depPkgList = append(depPkgList, s)
+				}
 			}
-
-			depPkgList = append(depPkgList, depName)
 		}
 
 		for _, depSpec := range getJobQueueRecurse(depPkgList, specDefs, processed) {
