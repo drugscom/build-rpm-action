@@ -14,6 +14,7 @@ RUN yum -y install \
     createrepo-0.9.9 \
     rpm-build-4.11.3 \
     rpmdevtools-8.3 \
+    yum-plugin-priorities-1.1.31 \
     && yum -y groupinstall 'Development Tools' \
     && yum -y clean all
 

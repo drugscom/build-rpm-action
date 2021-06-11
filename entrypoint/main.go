@@ -78,7 +78,7 @@ func createLocalRepo() (func() error, error) {
 		return nil, err
 	}
 
-	if _, err := fmt.Fprintf(repoConfig, "[local]\nname=Local development packages\nbaseurl=file://%s\nenabled=1\ngpgcheck=0\nprotect=1", repoOutput); err != nil {
+	if _, err := fmt.Fprintf(repoConfig, "[local]\nname=Local development packages\nbaseurl=file://%s\nenabled=1\ngpgcheck=0\nprotect=1\npriority=1\n", repoOutput); err != nil {
 		return nil, err
 	}
 
