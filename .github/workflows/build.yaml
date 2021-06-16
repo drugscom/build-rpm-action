@@ -3,40 +3,32 @@ name: Build image
 
 'on':
   push:
+    branches: [master]
+    tags: ['*']
   workflow_dispatch:
 
 permissions:
   packages: write
 
 jobs:
-  build_matrix:
-    name: Build execution matrix
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Build execution matrix
-        id: matrix
-        uses: drugscom/docker-matrix-action@v1
-
   build_image:
-    name: Build ${{ matrix.image-name }}
-    needs: build_matrix
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.build_matrix.outputs.matrix) }}
+    name: Build container image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
         with:
           submodules: true
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+      - name: Get Docker image tags and labels
+        id: metadata
+        uses: docker/metadata-action@v3
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=ref,event=branch
       - name: Log into container registry
         uses: docker/login-action@v1
         with:
@@ -46,31 +38,8 @@ jobs:
       - name: Build and publish container image
         uses: docker/build-push-action@v2
         with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          labels: |
-            org.opencontainers.image.source=${{ github.event.repository.html_url }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
+          labels: ${{ steps.metadata.outputs.labels }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          no-cache: true
+          pull: true
           push: true
-          tags: ${{ matrix.tags }}
-      - name: Notify Slack - Success
-        if: success()
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        uses: voxmedia/github-action-slack-notify-build@9b583ecdaddaa28bede5a056d8d8c8ff0363d66f
-        with:
-          message_id: ${{ steps.slack.outputs.message_id }}
-          channel: deploy
-          status: Published "${{ matrix.image-name }}"
-          color: good
-      - name: Notify Slack - Failure
-        if: failure()
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        uses: voxmedia/github-action-slack-notify-build@9b583ecdaddaa28bede5a056d8d8c8ff0363d66f
-        with:
-          message_id: ${{ steps.slack.outputs.message_id }}
-          channel: deploy
-          status: Failed to build "${{ matrix.image-name }}"
-          color: danger
