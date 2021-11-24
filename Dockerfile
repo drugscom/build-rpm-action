@@ -4,7 +4,7 @@ WORKDIR /build
 RUN go build -o entrypoint
 
 
-FROM centos:7.9.2009
+FROM centos:8.4.2105
 
 LABEL 'com.github.actions.name'='Build RPM'
 LABEL 'com.github.actions.description'='Build RPM package from spec'
