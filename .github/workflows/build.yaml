@@ -19,7 +19,7 @@ jobs:
           submodules: true
       - name: Get Docker image tags and labels
         id: metadata
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
