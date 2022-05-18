@@ -30,7 +30,6 @@ golangci-lint:
     RUN golangci-lint --color=always run --path-prefix=entrypoint
   END
 
-
 test:
   BUILD +golangci-lint
   BUILD +yamllint

@@ -9,3 +9,7 @@ jobs:
   tests:
     name: Tests
     uses: drugscom/shared-workflows/.github/workflows/earthly-tests.yml@v1
+  docker-build:
+    name: Build Docker image
+    uses: drugscom/shared-workflows/.github/workflows/earthly-docker-build.yml@v1
+    needs: [tests]
