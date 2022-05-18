@@ -27,10 +27,19 @@ jobs:
         uses: drugscom/setup-earthly-action@v1
       - name: Run CI tests
         run: earthly +test
+      - name: Get Docker image tags
+        id: metadata
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=ref,event=branch
       - name: Get docker args
         id: docker
-        if: github.ref == 'refs/heads/master'
-        run: echo "::set-output name=args::--IMAGE_TAG=latest"
+        run: echo "::set-output name=args::--IMAGE_NAME='${{ join(fromJSON(steps.metadata.outputs.json).tags, ' ') }}'"
       - name: Build container image
         run: earthly +docker ${{ steps.docker.outputs.args }}
       - name: Log into registry

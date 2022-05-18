@@ -11,10 +11,13 @@ docker:
 
   ARG EARTHLY_GIT_PROJECT_NAME
   ARG EARTHLY_TARGET_TAG_DOCKER
-  ARG IMAGE_NAME=ghcr.io/${EARTHLY_GIT_PROJECT_NAME}
   ARG IMAGE_TAG=${EARTHLY_TARGET_TAG_DOCKER}
+  ARG IMAGE_NAME=ghcr.io/${EARTHLY_GIT_PROJECT_NAME}:${IMAGE_TAG}
   ARG CACHE_FROM=ghcr.io/${EARTHLY_GIT_PROJECT_NAME}:latest
-  SAVE IMAGE --cache-from="${CACHE_FROM}" --push "${IMAGE_NAME}:${IMAGE_TAG}"
+
+  FOR name IN ${IMAGE_NAME}
+    SAVE IMAGE --cache-from="${CACHE_FROM}" --push ${name}
+  END
 
 golangci-lint:
   FROM golangci/golangci-lint:latest
