@@ -37,6 +37,7 @@ func buildPackage(spec *RPMSpec) error {
 
 func cleanMetadata() error {
 	cmd := exec.Command("yum", "clean", "metadata")
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
