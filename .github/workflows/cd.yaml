@@ -10,6 +10,9 @@ name: CD
 concurrency:
   group: CD-new-release/${{ github.repo }}/${{ github.ref }}
 
+permissions:
+  packages: write
+
 env:
   EARTHLY_CI: 'true'
   FORCE_COLOR: 1
@@ -27,31 +30,5 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Setup Earthly
-        uses: drugscom/setup-earthly-action@v1
-      - name: Get Docker image tags
-        id: metadata
-        uses: docker/metadata-action@v4
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=ref,event=branch
-      - name: Get docker args
-        id: docker
-        run: echo "::set-output name=args::--IMAGE_NAME='${{ join(fromJSON(steps.metadata.outputs.json).tags, ' ') }}'"
-      - name: Log into registry
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish container image
-        run: earthly --push +docker ${{ steps.docker.outputs.args }}
+    uses: drugscom/shared-workflows/.github/workflows/earthly-docker-push.yml@v1

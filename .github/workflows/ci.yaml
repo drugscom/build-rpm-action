@@ -5,25 +5,7 @@ name: CI
   pull_request:
   workflow_dispatch:
 
-concurrency:
-  group: CI/${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  packages: write
-
-env:
-  EARTHLY_CI: 'true'
-  FORCE_COLOR: 1
-
 jobs:
-  test:
+  tests:
     name: Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Setup Earthly
-        uses: drugscom/setup-earthly-action@v1
-      - name: Run CI tests
-        run: earthly +test
+    uses: drugscom/shared-workflows/.github/workflows/earthly-tests.yml@v1
