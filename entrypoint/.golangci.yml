@@ -1,0 +1,12 @@
+---
+linters:
+  enable-all: true
+  disable:
+    - goerr113
+    - exhaustivestruct
+    - golint
+    - interfacer
+    - lll
+    - maligned
+    - scopelint
+    - wrapcheck

@@ -14,13 +14,14 @@ import (
 )
 
 func getBuildDeps(spec io.ReadSeeker) ([]string, error) {
-	var result []string
-	processed := map[string]struct{}{}
-
 	params, err := getSpecParamArray(spec, "BuildRequires")
 	if err != nil {
-		return result, err
+		return nil, err
 	}
+
+	result := make([]string, 0, len(params))
+
+	processed := map[string]struct{}{}
 
 	for _, s := range params {
 		pkgName := regexp.MustCompile(`^[a-zA-Z][-._+a-zA-Z0-9]+`).FindString(s)
@@ -31,6 +32,7 @@ func getBuildDeps(spec io.ReadSeeker) ([]string, error) {
 		}
 
 		processed[pkgName] = struct{}{}
+
 		result = append(result, pkgName)
 	}
 
@@ -47,6 +49,7 @@ func getBuildPath(p string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		result = path.Join(cwd, result)
 	}
 
@@ -64,11 +67,13 @@ func getSpecParam(spec io.ReadSeeker, key string) ([]string, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
+		// nolint:gomnd
 		matched := regexp.MustCompile(fmt.Sprintf(`^\s*%s:\s*`, key)).Split(line, 2)
 		if len(matched) > 1 {
 			result = append(result, matched[1])
 		}
 	}
+
 	if err := scanner.Err(); err != nil {
 		return result, err
 	}
@@ -78,6 +83,7 @@ func getSpecParam(spec io.ReadSeeker, key string) ([]string, error) {
 
 func getSpecParamArray(spec io.ReadSeeker, key string) ([]string, error) {
 	var result []string
+
 	processed := map[string]struct{}{}
 
 	params, err := getSpecParam(spec, key)
@@ -86,20 +92,21 @@ func getSpecParamArray(spec io.ReadSeeker, key string) ([]string, error) {
 	}
 
 	for _, s := range params {
-		for _, ss := range regexp.MustCompile(`[ ,]`).Split(s, -1) {
-			ss = strings.TrimSpace(ss)
+		for _, param := range regexp.MustCompile(`[ ,]`).Split(s, -1) {
+			param = strings.TrimSpace(param)
 
-			if ss == "" {
+			if param == "" {
 				continue
 			}
 
-			if _, ok := processed[ss]; ok {
+			if _, ok := processed[param]; ok {
 				// Ignore duplicated entries
 				continue
 			}
 
-			processed[ss] = struct{}{}
-			result = append(result, ss)
+			processed[param] = struct{}{}
+
+			result = append(result, param)
 		}
 	}
 
@@ -149,12 +156,12 @@ func (s *RPMSpec) String() string {
 func (s *RPMSpec) TestArch() error {
 	var buildArch string
 
-	goArch := runtime.GOARCH
-	if goArch == "amd64" {
+	switch goArch := runtime.GOARCH; goArch {
+	case "amd64":
 		buildArch = "x86_64"
-	} else if goArch == "arm64" {
+	case "arm64":
 		buildArch = "aarch64"
-	} else {
+	default:
 		buildArch = goArch
 	}
 
@@ -177,18 +184,18 @@ func (s *RPMSpec) TestArch() error {
 	return fmt.Errorf("architecture \"%s\" not found in spec exclusive list (%s)", buildArch, strings.Join(s.ExclusiveArch, ", "))
 }
 
-func NewRPMSpec(p string) (*RPMSpec, error) {
+func NewRPMSpec(specPath string) (*RPMSpec, error) {
 	// Ensure spec file is accessible
-	if _, err := os.Stat(p); err != nil {
+	if _, err := os.Stat(specPath); err != nil {
 		return nil, err
 	}
 
-	buildPath, err := getBuildPath(p)
+	buildPath, err := getBuildPath(specPath)
 	if err != nil {
 		return nil, err
 	}
 
-	parsedSpec, err := parseSpec(p)
+	parsedSpec, err := parseSpec(specPath)
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +204,7 @@ func NewRPMSpec(p string) (*RPMSpec, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if packageName == "" {
 		return nil, fmt.Errorf("could not determine package name")
 	}
@@ -218,7 +226,7 @@ func NewRPMSpec(p string) (*RPMSpec, error) {
 
 	return &RPMSpec{
 		Name:          packageName,
-		Path:          p,
+		Path:          specPath,
 		BuildDeps:     buildDeps,
 		BuildPath:     buildPath,
 		ExcludeArch:   excludeArchs,

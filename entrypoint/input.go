@@ -6,7 +6,9 @@ import (
 	"github.com/sethvargo/go-githubactions"
 )
 
-func GetArgsAsArray(args []string) (value []string) {
+func GetArgsAsArray(args []string) []string {
+	var value []string
+
 	for _, s := range args {
 		for _, ss := range strings.Split(s, ",") {
 			ss = strings.TrimSpace(ss)
@@ -19,7 +21,9 @@ func GetArgsAsArray(args []string) (value []string) {
 	return value
 }
 
-func GetInputAsArray(i string) (value []string) {
+func GetInputAsArray(i string) []string {
+	var value []string
+
 	for _, s := range strings.Split(githubactions.GetInput(i), "\n") {
 		for _, ss := range strings.Split(s, ",") {
 			ss = strings.TrimSpace(ss)

@@ -16,6 +16,7 @@ func buildPackage(spec *RPMSpec) error {
 	githubactions.Group(fmt.Sprintf("Building package \"%s\"", spec.Name))
 	defer githubactions.EndGroup()
 
+	// nolint:gosec // Subprocess launched with a potential tainted input or cmd arguments
 	cmd := exec.Command("rpmbuild", "-ba", "--nocheck", spec.Path,
 		"--define", fmt.Sprintf("_topdir %s", spec.BuildPath),
 		"--define", "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm",
@@ -24,8 +25,10 @@ func buildPackage(spec *RPMSpec) error {
 	cmd.Stderr = os.Stderr
 
 	githubactions.Debugf(cmd.String())
+
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
+
 		return err
 	}
 
@@ -38,8 +41,10 @@ func cleanMetadata() error {
 	cmd.Stderr = os.Stderr
 
 	githubactions.Debugf(cmd.String())
+
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
+
 		return err
 	}
 
@@ -85,29 +90,33 @@ func createLocalRepo() (func() error, error) {
 	return func() error {
 		githubactions.Group("Updating local repo")
 		defer githubactions.EndGroup()
+
 		return createRepo(repoCache, repoOutput, cwd)
 	}, nil
 }
 
-func createRepo(cachePath, outputPath string, p string) error {
-	cmdArgs := []string{"-q", "-u", p}
+func createRepo(cachePath, outputPath string, repoPath string) error {
+	cmdArgs := []string{"-q", "-u"}
 
 	if cachePath != "" {
 		cmdArgs = append(cmdArgs, "-c", cachePath)
 	}
+
 	if outputPath != "" {
 		cmdArgs = append(cmdArgs, "-o", outputPath)
 	}
 
-	cmdArgs = append(cmdArgs, p)
+	cmdArgs = append(cmdArgs, repoPath)
 
 	cmd := exec.Command("createrepo", cmdArgs...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	githubactions.Debugf(cmd.String())
+
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
+
 		return err
 	}
 
@@ -119,8 +128,10 @@ func downloadSources(spec *RPMSpec) error {
 	defer githubactions.EndGroup()
 
 	destPath := path.Join(spec.BuildPath, "SOURCES")
+	// nolint:gofumpt,gomnd
 	if err := os.MkdirAll(destPath, 0755); err != nil {
 		githubactions.Errorf(err.Error())
+
 		return err
 	}
 
@@ -149,8 +160,10 @@ func downloadSources(spec *RPMSpec) error {
 	cmd.Stderr = os.Stderr
 
 	githubactions.Debugf(cmd.String())
+
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
+
 		return err
 	}
 
@@ -162,11 +175,13 @@ func getJobQueue(pkgList []string, specDefs map[string]*RPMSpec) []*RPMSpec {
 }
 
 func getJobQueueRecurse(pkgList []string, specDefs map[string]*RPMSpec, processed map[string]struct{}) []*RPMSpec {
+	// nolint:prealloc
 	var result []*RPMSpec
 
 	for _, pkgName := range pkgList {
 		if _, ok := processed[pkgName]; ok {
 			githubactions.Debugf("Skipping package \"%s\", already processed", pkgName)
+
 			continue
 		}
 
@@ -176,55 +191,67 @@ func getJobQueueRecurse(pkgList []string, specDefs map[string]*RPMSpec, processe
 		}
 
 		githubactions.Debugf("Package \"%s\" build dependencies: %s", pkgName, strings.Join(spec.BuildDeps, ", "))
+
 		var depPkgList []string
+
 		for _, depName := range spec.BuildDeps {
 			if _, ok := processed[depName]; ok {
 				githubactions.Debugf("Skipping build dependency \"%s\", already processed", depName)
+
 				continue
 			}
 
-			for _, s := range []string{
+			for _, devDep := range []string{
 				depName,
 				strings.TrimSuffix(depName, "-devel"),
 				strings.TrimPrefix(depName, "lib"),
 				strings.TrimSuffix(strings.TrimPrefix(depName, "lib"), "-devel"),
 			} {
-				if _, ok := specDefs[s]; ok {
-					depPkgList = append(depPkgList, s)
+				if _, ok := specDefs[devDep]; ok {
+					depPkgList = append(depPkgList, devDep)
 				}
 			}
 		}
 
 		for _, depSpec := range getJobQueueRecurse(depPkgList, specDefs, processed) {
 			githubactions.Debugf("Build dependency \"%s\" will be built before \"%s\"", depSpec.Name, pkgName)
+
 			processed[depSpec.Name] = struct{}{}
+
 			result = append(result, depSpec)
 		}
 
 		githubactions.Debugf("Adding package \"%s\" to the queue", pkgName)
+
 		processed[pkgName] = struct{}{}
+
 		result = append(result, spec)
 	}
 
 	return result
 }
 
-func getRPMSpecs(p []string) (map[string]*RPMSpec, error) {
+func getRPMSpecs(specPaths []string) (map[string]*RPMSpec, error) {
 	githubactions.Group("Reading RPM spec files")
 	defer githubactions.EndGroup()
 
 	var err error
+
 	result := map[string]*RPMSpec{}
 
-	for _, p := range p {
+	for _, specPath := range specPaths {
 		var spec *RPMSpec
-		spec, err = NewRPMSpec(p)
+
+		spec, err = NewRPMSpec(specPath)
 		if err != nil {
-			githubactions.Errorf("Skipping \"%s\": %s", p, err)
+			githubactions.Errorf("Skipping \"%s\": %s", specPath, err)
+
 			continue
 		}
+
 		if err := spec.TestArch(); err != nil {
-			githubactions.Errorf("Skipping \"%s\": %s", p, err)
+			githubactions.Errorf("Skipping \"%s\": %s", specPath, err)
+
 			continue
 		}
 
@@ -238,13 +265,16 @@ func installBuildDeps(spec *RPMSpec) error {
 	githubactions.Group(fmt.Sprintf("Installing build dependencies for package \"%s\"", spec.Name))
 	defer githubactions.EndGroup()
 
+	// nolint:gosec // Subprocess launched with a potential tainted input or cmd arguments
 	cmd := exec.Command("yum-builddep", "-y", spec.Path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	githubactions.Debugf(cmd.String())
+
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
+
 		return err
 	}
 
@@ -262,14 +292,17 @@ func installExtraPackages(packages ...string) error {
 	cmd.Stderr = os.Stderr
 
 	githubactions.Debugf(cmd.String())
+
 	if err := cmd.Run(); err != nil {
 		githubactions.Errorf(err.Error())
+
 		return err
 	}
 
 	return nil
 }
 
+// nolint:cyclop
 func main() {
 	yumExtras := GetInputAsArray("yum-extras")
 	if len(yumExtras) > 0 {
@@ -284,7 +317,9 @@ func main() {
 	}
 
 	githubactions.Group("Building jobs queue")
-	var pkgList []string
+
+	pkgList := make([]string, 0, len(rpmSpecs))
+
 	for p := range rpmSpecs {
 		pkgList = append(pkgList, p)
 	}
@@ -299,7 +334,8 @@ func main() {
 		githubactions.Fatalf(err.Error())
 	}
 
-	var buildSuccessful []string
+	buildSuccessful := make([]string, 0, len(jobQueue))
+
 	for _, spec := range jobQueue {
 		githubactions.Debugf("Building package \"%s\" using spec file \"%s\"", spec.Name, spec.Path)
 
@@ -314,12 +350,14 @@ func main() {
 		if err := buildPackage(spec); err != nil {
 			githubactions.Fatalf(err.Error())
 		}
+
 		buildSuccessful = append(buildSuccessful, spec.Path)
 
 		//goland:noinspection GoNilness
 		if err := updateLocalRepo(); err != nil {
 			githubactions.Fatalf(err.Error())
 		}
+
 		if err := cleanMetadata(); err != nil {
 			githubactions.Fatalf(err.Error())
 		}
