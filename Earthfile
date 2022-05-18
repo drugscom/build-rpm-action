@@ -25,9 +25,9 @@ golangci-lint:
   COPY entrypoint .
   ARG CI
   IF [ "${CI}" = "true" ]
-    RUN golangci-lint run --out-format=line-number
+    RUN golangci-lint run --path-prefix=entrypoint --out-format=line-number
   ELSE
-    RUN golangci-lint --color=always run
+    RUN golangci-lint --color=always run --path-prefix=entrypoint
   END
 
 

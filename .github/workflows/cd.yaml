@@ -4,17 +4,31 @@ name: CD
 'on':
   push:
     branches: [master]
+    tags: [v*]
   workflow_dispatch:
 
 concurrency:
   group: CD-new-release/${{ github.repo }}/${{ github.ref }}
 
+permissions:
+  packages: write
+
+env:
+  EARTHLY_CI: 'true'
+  FORCE_COLOR: 1
+
 jobs:
   new-release:
     name: Publish release
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/')
     steps:
       - name: Create new release
         uses: drugscom/release-action@v1
         with:
           token: ${{ secrets.GH_COMMIT_PAT }}
+
+  build:
+    name: Build
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: drugscom/shared-workflows/.github/workflows/earthly-docker-push.yml@v1
