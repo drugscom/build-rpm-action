@@ -21,7 +21,6 @@ jobs:
   new-release:
     name: Publish release
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/heads/')
     steps:
       - name: Create new release
         uses: drugscom/release-action@v1
