@@ -96,7 +96,7 @@ func createLocalRepo() (func() error, error) {
 }
 
 func createRepo(cachePath, outputPath string, repoPath string) error {
-	cmdArgs := []string{"-q", "-u"}
+	cmdArgs := []string{"-q", "-u", repoPath}
 
 	if cachePath != "" {
 		cmdArgs = append(cmdArgs, "-c", cachePath)
