@@ -28,7 +28,7 @@ jobs:
         with:
           token: ${{ secrets.GH_COMMIT_PAT }}
 
-  build:
-    name: Build
+  docker-push:
+    name: Publish Docker image
     if: startsWith(github.ref, 'refs/tags/')
     uses: drugscom/shared-workflows/.github/workflows/earthly-docker-push.yml@v1
