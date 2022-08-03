@@ -11,6 +11,7 @@ concurrency:
   group: CD-new-release/${{ github.repo }}/${{ github.ref }}
 
 permissions:
+  contents: read
   packages: write
 
 env:
