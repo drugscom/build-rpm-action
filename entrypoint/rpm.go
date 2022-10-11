@@ -67,7 +67,7 @@ func getSpecParam(spec io.ReadSeeker, key string) ([]string, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// nolint:gomnd
+		//nolint:gomnd
 		matched := regexp.MustCompile(fmt.Sprintf(`^\s*%s:\s*`, key)).Split(line, 2)
 		if len(matched) > 1 {
 			result = append(result, matched[1])
