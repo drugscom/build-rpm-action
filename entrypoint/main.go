@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -16,7 +15,7 @@ func buildPackage(spec *RPMSpec) error {
 	githubactions.Group(fmt.Sprintf("Building package \"%s\"", spec.Name))
 	defer githubactions.EndGroup()
 
-	// nolint:gosec // Subprocess launched with a potential tainted input or cmd arguments
+	//nolint:gosec // Subprocess launched with a potential tainted input or cmd arguments
 	cmd := exec.Command("rpmbuild", "-ba", "--nocheck", spec.Path,
 		"--define", fmt.Sprintf("_topdir %s", spec.BuildPath),
 		"--define", "_build_name_fmt %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm",
@@ -128,7 +127,7 @@ func downloadSources(spec *RPMSpec) error {
 	defer githubactions.EndGroup()
 
 	destPath := path.Join(spec.BuildPath, "SOURCES")
-	// nolint:gofumpt,gomnd
+	//nolint:gofumpt,gomnd
 	if err := os.MkdirAll(destPath, 0755); err != nil {
 		githubactions.Errorf(err.Error())
 
@@ -136,7 +135,7 @@ func downloadSources(spec *RPMSpec) error {
 	}
 
 	// spectool is broken for some spec files, use parsed spec as a workaround
-	tempFile, err := ioutil.TempFile("", "spec-")
+	tempFile, err := os.CreateTemp("", "spec-")
 	if err != nil {
 		return err
 	}
@@ -175,7 +174,7 @@ func getJobQueue(pkgList []string, specDefs map[string]*RPMSpec) []*RPMSpec {
 }
 
 func getJobQueueRecurse(pkgList []string, specDefs map[string]*RPMSpec, processed map[string]struct{}) []*RPMSpec {
-	// nolint:prealloc
+	//nolint:prealloc
 	var result []*RPMSpec
 
 	for _, pkgName := range pkgList {
@@ -265,7 +264,7 @@ func installBuildDeps(spec *RPMSpec) error {
 	githubactions.Group(fmt.Sprintf("Installing build dependencies for package \"%s\"", spec.Name))
 	defer githubactions.EndGroup()
 
-	// nolint:gosec // Subprocess launched with a potential tainted input or cmd arguments
+	//nolint:gosec // Subprocess launched with a potential tainted input or cmd arguments
 	cmd := exec.Command("yum-builddep", "-y", spec.Path)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -302,7 +301,7 @@ func installExtraPackages(packages ...string) error {
 	return nil
 }
 
-// nolint:cyclop
+//nolint:cyclop
 func main() {
 	yumExtras := GetInputAsArray("yum-extras")
 	if len(yumExtras) > 0 {
