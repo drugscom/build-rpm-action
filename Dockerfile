@@ -1,4 +1,4 @@
-FROM golang:1.20.0 AS builder
+FROM golang:1.20.1 AS builder
 COPY entrypoint /build
 WORKDIR /build
 RUN go build -o entrypoint
